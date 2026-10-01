@@ -3,8 +3,33 @@ import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../init";
 import { runs } from "@/lib/db/schema";
+import { adsWorkflowQueue } from "@/lib/queue/client";
+
+const runTypeSchema = z.enum(["setup", "audit", "plan", "report"]);
 
 export const runsRouter = router({
+  create: protectedProcedure
+    .input(
+      z.object({
+        type: runTypeSchema,
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [run] = await ctx.db
+        .insert(runs)
+        .values({ tenantId: ctx.tenantId, type: input.type, status: "queued" })
+        .returning();
+
+      await adsWorkflowQueue.add(
+        `${input.type}:${run.id}`,
+        { runId: run.id, tenantId: ctx.tenantId, type: input.type, payload: input.notes ? { notes: input.notes } : {} },
+        { jobId: run.id }
+      );
+
+      return run;
+    }),
+
   list: protectedProcedure
     .input(
       z.object({

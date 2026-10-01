@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import { runs, tenants } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Play, Plus, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Play, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { NewRunButton } from "@/components/runs/new-run-button";
 
 const RUN_TYPE_LABELS: Record<string, string> = {
   setup: "Setup",
@@ -52,10 +52,7 @@ export default async function RunsPage() {
             Auditorias, planos e relatórios executados pelo AI.
           </p>
         </div>
-        <Button size="sm" disabled title="Disponível na Etapa 4">
-          <Plus className="h-4 w-4" />
-          Novo run
-        </Button>
+        <NewRunButton />
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
