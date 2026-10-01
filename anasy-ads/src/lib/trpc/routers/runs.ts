@@ -1,0 +1,36 @@
+import { z } from "zod";
+import { eq, and, desc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { router, protectedProcedure } from "../init";
+import { runs } from "@/lib/db/schema";
+
+export const runsRouter = router({
+  list: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(runs)
+        .where(eq(runs.tenantId, ctx.tenantId))
+        .orderBy(desc(runs.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+    }),
+
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const [run] = await ctx.db
+        .select()
+        .from(runs)
+        .where(and(eq(runs.id, input.id), eq(runs.tenantId, ctx.tenantId)));
+
+      if (!run) throw new TRPCError({ code: "NOT_FOUND" });
+      return run;
+    }),
+});

@@ -18,10 +18,11 @@ src/
 │   │       ├── runs/             # Runs de auditoria
 │   │       ├── reports/          # Relatórios gerados
 │   │       └── settings/         # Configurações do tenant
+│   ├── actions/           # Server Actions (ex: disconnectAccount)
 │   └── api/
 │       ├── chat/          # POST — streaming Anthropic SDK
 │       ├── oauth/         # initiate + callbacks Google Ads, Meta
-│       └── trpc/          # [Etapa 3] tRPC handler
+│       └── trpc/          # tRPC fetchRequestHandler
 ├── components/
 │   ├── chat/              # ChatInterface (SSE reader)
 │   ├── dashboard/         # Sidebar, Header
@@ -31,11 +32,11 @@ src/
     ├── db/                # Drizzle + Neon; schemas: tenants, accounts, runs, messages, mutations
     ├── oauth/             # adapters Google Ads, Meta; state CSRF
     ├── queue/             # BullMQ + ioredis (Upstash)
-    ├── trpc/              # [Etapa 3] router, context, procedures
-    └── vault/             # storeSecret / getSecret → Redis (secretRef no DB)
+    ├── trpc/              # router, context, init, procedures (accounts, runs)
+    └── vault/             # storeSecret / getSecret / deleteSecret → Redis
 ```
 
-**Stack principal:** Next.js 15 (App Router) · Clerk · Drizzle ORM · Neon PostgreSQL · BullMQ · Upstash Redis · Anthropic SDK · Tailwind v4 · Radix UI
+**Stack principal:** Next.js 15 (App Router) · Clerk · Drizzle ORM · Neon PostgreSQL · BullMQ · Upstash Redis · Anthropic SDK · Tailwind v4 · Radix UI · tRPC v11
 
 ---
 
@@ -56,20 +57,15 @@ Interface conversacional com o skill Claude Ads via Server-Sent Events.
 - Skill carregado de `skill-refs/` em runtime (nunca commitado)
 - Componente `ChatInterface` — leitor SSE, chips de sugestão, Shift+Enter
 
-### Etapa 3 — tRPC API + Camada de Dados 🔄 *(próxima)*
-Conectar as páginas do dashboard a dados reais do banco.
+### Etapa 3 — tRPC API + Camada de Dados ✅
+Conexão das páginas do dashboard a dados reais do banco.
 
-**Escopo:**
-- Configurar tRPC com contexto Clerk + Drizzle (`src/lib/trpc/`)
-- Procedures:
-  - `accounts.list` — listar contas conectadas do tenant
-  - `accounts.disconnect` — desativar conta e remover secretRef do vault
-  - `runs.list` — listar runs do tenant com paginação
-  - `runs.get` — detalhes de um run específico
-- Atualizar página `connections` para exibir contas reais do banco
-- Atualizar página `runs` para listar runs reais com status
-- Remover páginas em caminhos incorretos (`(dashboard)/connections`, `(dashboard)/runs`)
-- Migração Drizzle: `drizzle-kit push` para criar tabelas em produção
+- tRPC v11 com contexto Clerk + Drizzle (`src/lib/trpc/`)
+- Procedures: `accounts.list`, `accounts.disconnect`, `runs.list`, `runs.get`
+- Página `connections`: lista contas reais + botão desconectar (Server Action)
+- Página `runs`: tabela de runs reais com badges de status
+- Páginas em caminhos incorretos redirecionam para as URLs corretas
+- Schema `tenants`: campos Asaas (`asaasCustomerId`, `asaasSubscriptionId`)
 
 ### Etapa 4 — Worker BullMQ (Audit Runs) ⬜
 Processamento assíncrono de auditorias e relatórios.
@@ -92,15 +88,17 @@ Entrada de dados via formulários que disparam workflows de forma guiada.
 - Preview do workflow antes de disparar (dry-run)
 - Histórico de mutations com rollback
 
-### Etapa 6 — Billing Stripe + Metering ⬜
-Monetização por uso de runs e seats.
+### Etapa 6 — Billing Asaas + Metering ⬜
+Monetização por uso de runs e seats, adaptada ao mercado brasileiro.
 
 **Escopo:**
-- Integração Stripe (subscription plans + usage billing)
+- Integração **Asaas** (PIX, boleto, cartão de crédito, assinaturas)
+- Cadastro de cliente Asaas com CPF/CNPJ do tenant (`asaasCustomerId` no DB)
+- Planos de assinatura com cobrança por ciclo (`asaasSubscriptionId` no DB)
 - Metering por run executado e tokens consumidos
-- Página de billing no Settings
-- Webhooks Stripe para atualizar status de subscription no banco
-- Gates de funcionalidade por plano (free / pro / enterprise)
+- Página de billing no Settings (saldo, próxima cobrança, histórico)
+- Webhooks Asaas para atualizar status de assinatura no banco
+- Gates de funcionalidade por plano (free / starter / pro / agency)
 
 ---
 
@@ -138,6 +136,10 @@ META_APP_SECRET=...
 
 # App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Asaas (Etapa 6)
+# ASAAS_API_KEY=...
+# ASAAS_ENVIRONMENT=sandbox  # ou production
 ```
 
 ### Skill-refs (runtime, nunca commitado)
