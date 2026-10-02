@@ -30,19 +30,34 @@ export function NewRunButton({ accounts }: { accounts: Account[] }) {
   const [type, setType] = useState<RunType>("audit");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     startTransition(async () => {
-      await createRun(type, accountId || undefined, notes.trim() || undefined);
-      setOpen(false);
-      setNotes("");
+      try {
+        const result = await createRun(type, accountId || undefined, notes.trim() || undefined);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setOpen(false);
+        setNotes("");
+      } catch {
+        setError("Erro inesperado ao criar o run. Tente novamente.");
+      }
     });
   }
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setError(null);
+  }
+
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger asChild>
         <Button size="sm">
           <Plus className="h-4 w-4" />
@@ -125,6 +140,12 @@ export function NewRunButton({ accounts }: { accounts: Account[] }) {
                 className={`${inputClass} resize-none`}
               />
             </div>
+
+            {error && (
+              <p role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-1">
               <Dialog.Close asChild>

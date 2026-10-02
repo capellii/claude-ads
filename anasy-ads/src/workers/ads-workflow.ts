@@ -1,6 +1,6 @@
 import { Worker, type Job } from "bullmq";
-import { redis, type WorkflowJobData } from "@/lib/queue/client";
-import { db } from "@/lib/db";
+import { createRedis, QUEUE_NAME, type WorkflowJobData } from "@/lib/queue/client";
+import { createDb } from "@/lib/db";
 import { runs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
@@ -8,6 +8,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const db = createDb(5);
 const AI_MODEL = "claude-sonnet-4-6";
 
 function loadSkillPrompt(): string {
@@ -72,8 +73,8 @@ async function processRun(job: Job<WorkflowJobData>): Promise<void> {
 }
 
 export function startWorker() {
-  const worker = new Worker<WorkflowJobData>("ads-workflows", processRun, {
-    connection: redis,
+  const worker = new Worker<WorkflowJobData>(QUEUE_NAME, processRun, {
+    connection: createRedis(),
     concurrency: 2,
   });
 

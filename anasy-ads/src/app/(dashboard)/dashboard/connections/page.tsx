@@ -1,10 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
-import { db } from "@/lib/db";
-import { accounts, tenants } from "@/lib/db/schema";
+import { getDb } from "@/lib/db";
+import { accounts } from "@/lib/db/schema";
+import { getCurrentTenant } from "@/lib/db/tenant";
 import { eq, and } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link2, CheckCircle2, Clock, Unlink } from "lucide-react";
+import { Link2, CheckCircle2, Clock, Unlink, AlertTriangle } from "lucide-react";
 import { disconnectAccount } from "@/app/actions/accounts";
 
 const PLATFORMS = [
@@ -18,20 +18,33 @@ const PLATFORMS = [
 
 type PlatformId = (typeof PLATFORMS)[number]["id"];
 
-export default async function ConnectionsPage() {
-  const { orgId } = await auth();
+const ERROR_MESSAGES: Record<string, string> = {
+  not_configured: "Esta integração ainda não foi configurada no servidor (credenciais OAuth ausentes).",
+  access_denied: "A autorização foi cancelada na tela do provedor.",
+  invalid_state: "A sessão de autorização expirou ou é inválida. Tente conectar novamente.",
+  missing_params: "O provedor não retornou o código de autorização. Tente novamente.",
+  exchange_failed: "Não foi possível concluir a conexão com o provedor. Tente novamente em instantes.",
+  invalid_platform: "Plataforma inválida.",
+};
+
+function platformName(id: string | undefined) {
+  return PLATFORMS.find((p) => p.id === id)?.name ?? "a plataforma";
+}
+
+export default async function ConnectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ success?: string; error?: string; platform?: string }>;
+}) {
+  const { success, error, platform: errorPlatform } = await searchParams;
+  const tenant = await getCurrentTenant();
 
   let connectedAccounts: (typeof accounts.$inferSelect)[] = [];
-  if (orgId) {
-    const tenant = await db.query.tenants.findFirst({
-      where: eq(tenants.clerkOrgId, orgId),
-    });
-    if (tenant) {
-      connectedAccounts = await db
-        .select()
-        .from(accounts)
-        .where(and(eq(accounts.tenantId, tenant.id), eq(accounts.isActive, true)));
-    }
+  if (tenant) {
+    connectedAccounts = await getDb()
+      .select()
+      .from(accounts)
+      .where(and(eq(accounts.tenantId, tenant.id), eq(accounts.isActive, true)));
   }
 
   const connectedIds = new Set(connectedAccounts.map((a) => a.platform as PlatformId));
@@ -44,6 +57,29 @@ export default async function ConnectionsPage() {
           Conecte suas contas de anúncios via OAuth para permitir que a IA leia e analise seus dados.
         </p>
       </div>
+
+      {success && (
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4" role="status">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+          <p className="text-sm text-emerald-700 dark:text-emerald-400">
+            {platformName(success)} conectado com sucesso.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4" role="alert">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div>
+            <p className="text-sm font-medium text-destructive">
+              Falha ao conectar {platformName(errorPlatform)}
+            </p>
+            <p className="mt-0.5 text-xs text-destructive/80">
+              {ERROR_MESSAGES[error] ?? "Ocorreu um erro inesperado durante a autorização."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {connectedAccounts.length > 0 && (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">

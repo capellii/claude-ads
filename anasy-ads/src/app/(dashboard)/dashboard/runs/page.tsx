@@ -1,6 +1,6 @@
-import { auth } from "@clerk/nextjs/server";
-import { db } from "@/lib/db";
-import { runs, accounts, tenants } from "@/lib/db/schema";
+import { getDb } from "@/lib/db";
+import { runs, accounts } from "@/lib/db/schema";
+import { getCurrentTenant } from "@/lib/db/tenant";
 import { eq, and, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Play, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
@@ -28,7 +28,7 @@ const STATUS_CONFIG = {
 };
 
 export default async function RunsPage() {
-  const { orgId } = await auth();
+  const tenant = await getCurrentTenant();
 
   let runList: (typeof runs.$inferSelect)[] = [];
   let connectedAccounts: {
@@ -38,29 +38,25 @@ export default async function RunsPage() {
     platformAccountId: string;
   }[] = [];
 
-  if (orgId) {
-    const tenant = await db.query.tenants.findFirst({
-      where: eq(tenants.clerkOrgId, orgId),
-    });
-    if (tenant) {
-      [runList, connectedAccounts] = await Promise.all([
-        db
-          .select()
-          .from(runs)
-          .where(eq(runs.tenantId, tenant.id))
-          .orderBy(desc(runs.createdAt))
-          .limit(50),
-        db
-          .select({
-            id: accounts.id,
-            platform: accounts.platform,
-            accountName: accounts.accountName,
-            platformAccountId: accounts.platformAccountId,
-          })
-          .from(accounts)
-          .where(and(eq(accounts.tenantId, tenant.id), eq(accounts.isActive, true))),
-      ]);
-    }
+  if (tenant) {
+    const db = getDb();
+    [runList, connectedAccounts] = await Promise.all([
+      db
+        .select()
+        .from(runs)
+        .where(eq(runs.tenantId, tenant.id))
+        .orderBy(desc(runs.createdAt))
+        .limit(50),
+      db
+        .select({
+          id: accounts.id,
+          platform: accounts.platform,
+          accountName: accounts.accountName,
+          platformAccountId: accounts.platformAccountId,
+        })
+        .from(accounts)
+        .where(and(eq(accounts.tenantId, tenant.id), eq(accounts.isActive, true))),
+    ]);
   }
 
   const hasActiveRuns = runList.some(

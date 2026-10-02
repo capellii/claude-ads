@@ -1,21 +1,17 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { eq, and } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { accounts, tenants } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { accounts } from "@/lib/db/schema";
+import { getCurrentTenant } from "@/lib/db/tenant";
 import { deleteSecret } from "@/lib/vault";
 
 export async function disconnectAccount(accountId: string) {
-  const { orgId } = await auth();
-  if (!orgId) throw new Error("Unauthorized");
+  const tenant = await getCurrentTenant();
+  if (!tenant) throw new Error("Unauthorized");
 
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.clerkOrgId, orgId),
-  });
-  if (!tenant) throw new Error("Tenant not found");
-
+  const db = getDb();
   const [account] = await db
     .select()
     .from(accounts)

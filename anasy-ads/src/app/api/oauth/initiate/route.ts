@@ -5,24 +5,32 @@ import { generateState, setOAuthState } from "@/lib/oauth/state";
 import { getGoogleOAuthUrl } from "@/lib/oauth/adapters/google-ads";
 import { getMetaOAuthUrl } from "@/lib/oauth/adapters/meta";
 
+const PROVIDERS = {
+  google_ads: {
+    configured: () => Boolean(process.env.GOOGLE_ADS_CLIENT_ID && process.env.GOOGLE_ADS_CLIENT_SECRET),
+    url: getGoogleOAuthUrl,
+  },
+  meta: {
+    configured: () => Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET),
+    url: getMetaOAuthUrl,
+  },
+} as const;
+
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
 
   const platform = req.nextUrl.searchParams.get("platform");
-
-  let oauthUrl: string;
-  if (platform === "google_ads") {
-    const state = generateState();
-    await setOAuthState(state);
-    oauthUrl = getGoogleOAuthUrl(state);
-  } else if (platform === "meta") {
-    const state = generateState();
-    await setOAuthState(state);
-    oauthUrl = getMetaOAuthUrl(state);
-  } else {
-    return new Response("Invalid platform", { status: 400 });
+  if (platform !== "google_ads" && platform !== "meta") {
+    redirect("/dashboard/connections?error=invalid_platform");
   }
 
-  redirect(oauthUrl);
+  const provider = PROVIDERS[platform];
+  if (!provider.configured()) {
+    redirect(`/dashboard/connections?error=not_configured&platform=${platform}`);
+  }
+
+  const state = generateState();
+  await setOAuthState(state);
+  redirect(provider.url(state));
 }

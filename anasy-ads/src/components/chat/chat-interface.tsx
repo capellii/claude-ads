@@ -72,6 +72,7 @@ export function ChatInterface() {
     setStreaming(true);
 
     const history = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
+    let accumulated = "";
 
     try {
       const res = await fetch("/api/chat", {
@@ -87,7 +88,6 @@ export function ChatInterface() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let accumulated = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -102,30 +102,37 @@ export function ChatInterface() {
           const raw = line.slice(6).trim();
           if (!raw) continue;
 
+          let event: { type: string; text?: string; error?: string };
           try {
-            const event = JSON.parse(raw) as { type: string; text?: string; error?: string };
-            if (event.type === "delta" && event.text) {
-              accumulated += event.text;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: accumulated, pending: false } : m
-                )
-              );
-            } else if (event.type === "done") {
-              break;
-            } else if (event.type === "error") {
-              throw new Error(event.error ?? "Stream error");
-            }
+            event = JSON.parse(raw);
           } catch {
-            // malformed line
+            continue;
+          }
+          if (event.type === "delta" && event.text) {
+            accumulated += event.text;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: accumulated, pending: false } : m
+              )
+            );
+          } else if (event.type === "error") {
+            throw new Error(event.error ?? "Stream error");
           }
         }
       }
+
+      if (!accumulated) throw new Error("Resposta vazia");
     } catch {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: "Erro ao conectar com o AI. Tente novamente.", pending: false }
+            ? {
+                ...m,
+                content: accumulated
+                  ? `${accumulated}\n\n[Resposta interrompida]`
+                  : "Erro ao conectar com o AI. Tente novamente.",
+                pending: false,
+              }
             : m
         )
       );

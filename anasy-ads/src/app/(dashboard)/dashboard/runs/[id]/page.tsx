@@ -1,6 +1,6 @@
-import { auth } from "@clerk/nextjs/server";
-import { db } from "@/lib/db";
-import { runs, tenants } from "@/lib/db/schema";
+import { getDb } from "@/lib/db";
+import { runs } from "@/lib/db/schema";
+import { getCurrentTenant } from "@/lib/db/tenant";
 import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -54,15 +54,10 @@ export default async function RunDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { orgId } = await auth();
-  if (!orgId) notFound();
-
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.clerkOrgId, orgId),
-  });
+  const tenant = await getCurrentTenant();
   if (!tenant) notFound();
 
-  const [run] = await db
+  const [run] = await getDb()
     .select()
     .from(runs)
     .where(and(eq(runs.id, id), eq(runs.tenantId, tenant.id)));

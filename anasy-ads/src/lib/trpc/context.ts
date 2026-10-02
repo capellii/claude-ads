@@ -1,21 +1,16 @@
-import { auth } from "@clerk/nextjs/server";
-import { db } from "@/lib/db";
-import { tenants } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
+import { getDb } from "@/lib/db";
+import { getCurrentTenant, getTenantKey } from "@/lib/db/tenant";
 
-export async function createContext(_opts: FetchCreateContextFnOptions) {
-  const { userId, orgId } = await auth();
+export async function createContext() {
+  const ident = await getTenantKey();
+  const tenant = ident ? await getCurrentTenant() : null;
 
-  let tenantId: string | null = null;
-  if (orgId) {
-    const tenant = await db.query.tenants.findFirst({
-      where: eq(tenants.clerkOrgId, orgId),
-    });
-    tenantId = tenant?.id ?? null;
-  }
-
-  return { userId, orgId, tenantId, db };
+  return {
+    userId: ident?.userId ?? null,
+    orgId: ident?.orgId ?? null,
+    tenantId: tenant?.id ?? null,
+    db: getDb(),
+  };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

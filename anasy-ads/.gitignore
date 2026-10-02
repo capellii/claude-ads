@@ -1,0 +1,10 @@
+.next/
+.open-next/
+.wrangler/
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.*
+.dev.vars
+skill-refs/*
+!skill-refs/.gitkeep

@@ -45,16 +45,12 @@ export async function POST(req: NextRequest) {
           enqueue({ type: "delta", text });
         });
 
-        stream.on("error", (err) => {
-          enqueue({ type: "error", error: String(err) });
-          controller.close();
-        });
-
         await stream.finalMessage();
         enqueue({ type: "done" });
-        controller.close();
       } catch (err) {
-        enqueue({ type: "error", error: String(err) });
+        console.error("[api/chat]", err);
+        enqueue({ type: "error", error: "Falha ao gerar a resposta do AI." });
+      } finally {
         controller.close();
       }
     },

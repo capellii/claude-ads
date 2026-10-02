@@ -3,7 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../init";
 import { runs } from "@/lib/db/schema";
-import { adsWorkflowQueue } from "@/lib/queue/client";
+import { enqueueWorkflow } from "@/lib/queue/client";
 
 const runTypeSchema = z.enum(["setup", "audit", "plan", "report"]);
 
@@ -21,11 +21,12 @@ export const runsRouter = router({
         .values({ tenantId: ctx.tenantId, type: input.type, status: "queued" })
         .returning();
 
-      await adsWorkflowQueue.add(
-        `${input.type}:${run.id}`,
-        { runId: run.id, tenantId: ctx.tenantId, type: input.type, payload: input.notes ? { notes: input.notes } : {} },
-        { jobId: run.id }
-      );
+      await enqueueWorkflow({
+        runId: run.id,
+        tenantId: ctx.tenantId,
+        type: input.type,
+        payload: input.notes ? { notes: input.notes } : {},
+      });
 
       return run;
     }),

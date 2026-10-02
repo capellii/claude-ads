@@ -1,17 +1,35 @@
-import { auth } from "@clerk/nextjs/server";
-import { BarChart3, Play, Link2, TrendingUp, AlertTriangle } from "lucide-react";
+import { and, count, eq, gte } from "drizzle-orm";
+import { BarChart3, Play, Link2, TrendingUp, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getDb } from "@/lib/db";
+import { accounts, runs } from "@/lib/db/schema";
+import { getCurrentTenant, getTenantKey } from "@/lib/db/tenant";
 
-const stats = [
-  { label: "Runs este mês", value: "—", icon: Play, description: "auditorias e relatórios" },
-  { label: "Contas ativas", value: "—", icon: Link2, description: "plataformas conectadas" },
-  { label: "Investimento gerenciado", value: "—", icon: BarChart3, description: "30 dias" },
-  { label: "ROAS médio", value: "—", icon: TrendingUp, description: "todas as contas" },
-];
+async function loadCounts(tenantId: string) {
+  const db = getDb();
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [[runsMonth], [activeAccounts]] = await Promise.all([
+    db.select({ n: count() }).from(runs).where(and(eq(runs.tenantId, tenantId), gte(runs.createdAt, monthStart))),
+    db.select({ n: count() }).from(accounts).where(and(eq(accounts.tenantId, tenantId), eq(accounts.isActive, true))),
+  ]);
+  return { runsMonth: runsMonth.n, activeAccounts: activeAccounts.n };
+}
 
 export default async function DashboardPage() {
-  const { orgId } = await auth();
+  const [ident, tenant] = await Promise.all([getTenantKey(), getCurrentTenant()]);
+  const counts = tenant ? await loadCounts(tenant.id) : { runsMonth: 0, activeAccounts: 0 };
+  const isPersonal = !ident?.orgId;
+
+  const stats = [
+    { label: "Runs este mês", value: String(counts.runsMonth), icon: Play, description: "auditorias e relatórios" },
+    { label: "Contas ativas", value: String(counts.activeAccounts), icon: Link2, description: "plataformas conectadas" },
+    { label: "Investimento gerenciado", value: "—", icon: BarChart3, description: "30 dias" },
+    { label: "ROAS médio", value: "—", icon: TrendingUp, description: "todas as contas" },
+  ];
 
   return (
     <div className="space-y-8">
@@ -22,15 +40,13 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {!orgId && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+      {isPersonal && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <div>
-            <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-              Nenhuma organização selecionada
-            </p>
-            <p className="mt-0.5 text-xs text-amber-600/70 dark:text-amber-400/70">
-              Crie ou selecione uma organização no menu superior para começar a gerenciar contas.
+            <p className="text-sm font-medium text-foreground">Você está no workspace pessoal</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Contas e runs ficam vinculados só a você. Para trabalhar em equipe, crie uma organização no menu superior.
             </p>
           </div>
         </div>
