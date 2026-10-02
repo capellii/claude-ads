@@ -1,10 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { runs, tenants } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { runs, accounts, tenants } from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Play, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { NewRunButton } from "@/components/runs/new-run-button";
+import { RunsPoller } from "@/components/runs/runs-poller";
+import Link from "next/link";
 
 const RUN_TYPE_LABELS: Record<string, string> = {
   setup: "Setup",
@@ -29,22 +31,46 @@ export default async function RunsPage() {
   const { orgId } = await auth();
 
   let runList: (typeof runs.$inferSelect)[] = [];
+  let connectedAccounts: {
+    id: string;
+    platform: string;
+    accountName: string | null;
+    platformAccountId: string;
+  }[] = [];
+
   if (orgId) {
     const tenant = await db.query.tenants.findFirst({
       where: eq(tenants.clerkOrgId, orgId),
     });
     if (tenant) {
-      runList = await db
-        .select()
-        .from(runs)
-        .where(eq(runs.tenantId, tenant.id))
-        .orderBy(desc(runs.createdAt))
-        .limit(50);
+      [runList, connectedAccounts] = await Promise.all([
+        db
+          .select()
+          .from(runs)
+          .where(eq(runs.tenantId, tenant.id))
+          .orderBy(desc(runs.createdAt))
+          .limit(50),
+        db
+          .select({
+            id: accounts.id,
+            platform: accounts.platform,
+            accountName: accounts.accountName,
+            platformAccountId: accounts.platformAccountId,
+          })
+          .from(accounts)
+          .where(and(eq(accounts.tenantId, tenant.id), eq(accounts.isActive, true))),
+      ]);
     }
   }
 
+  const hasActiveRuns = runList.some(
+    (r) => r.status === "queued" || r.status === "running"
+  );
+
   return (
     <div className="space-y-6">
+      <RunsPoller active={hasActiveRuns} />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Runs</h1>
@@ -52,7 +78,7 @@ export default async function RunsPage() {
             Auditorias, planos e relatórios executados pelo AI.
           </p>
         </div>
-        <NewRunButton />
+        <NewRunButton accounts={connectedAccounts} />
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
@@ -72,6 +98,7 @@ export default async function RunsPage() {
                 <th className="px-4 py-2.5 text-left font-medium">ID</th>
                 <th className="px-4 py-2.5 text-left font-medium">Status</th>
                 <th className="px-4 py-2.5 text-left font-medium">Data</th>
+                <th className="px-4 py-2.5 text-right font-medium">Resultado</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -83,9 +110,17 @@ export default async function RunsPage() {
                   timeStyle: "short",
                 }).format(new Date(run.createdAt));
                 return (
-                  <tr key={run.id} className="hover:bg-muted/20 transition-colors">
+                  <tr
+                    key={run.id}
+                    className="relative hover:bg-muted/20 transition-colors"
+                  >
                     <td className="px-4 py-3 font-medium">
-                      {RUN_TYPE_LABELS[run.type] ?? run.type}
+                      <Link
+                        href={`/dashboard/runs/${run.id}`}
+                        className="after:absolute after:inset-0"
+                      >
+                        {RUN_TYPE_LABELS[run.type] ?? run.type}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       {run.id.slice(0, 12)}…
@@ -97,6 +132,13 @@ export default async function RunsPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{date}</td>
+                    <td className="px-4 py-3 text-right">
+                      {run.status === "completed" && (
+                        <span className="relative z-10 text-xs text-primary underline-offset-2 hover:underline">
+                          Ver →
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

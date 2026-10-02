@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 
 type RunType = "setup" | "audit" | "plan" | "report";
 
-export async function createRun(type: RunType, notes?: string) {
+export async function createRun(type: RunType, accountId?: string, notes?: string) {
   const { orgId } = await auth();
   if (!orgId) throw new Error("Unauthorized");
 
@@ -25,7 +25,15 @@ export async function createRun(type: RunType, notes?: string) {
 
   await adsWorkflowQueue.add(
     `${type}:${run.id}`,
-    { runId: run.id, tenantId: tenant.id, type, payload: notes ? { notes } : {} },
+    {
+      runId: run.id,
+      tenantId: tenant.id,
+      type,
+      payload: {
+        ...(accountId ? { accountId } : {}),
+        ...(notes ? { notes } : {}),
+      },
+    },
     { jobId: run.id }
   );
 
