@@ -2,6 +2,7 @@ name = "anasy-ads"
 main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 assets = { directory = ".open-next/assets", binding = "ASSETS" }
 
@@ -10,4 +11,4 @@ NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
 NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
 NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL = "/dashboard"
 NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL = "/dashboard"
-NEXT_PUBLIC_APP_URL = "https://anasy-ads.workers.dev"
+NEXT_PUBLIC_APP_URL = "https://anasy-ads.adm-b11.workers.dev"
