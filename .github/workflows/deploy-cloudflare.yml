@@ -47,6 +47,7 @@ jobs:
         run: npx opennextjs-cloudflare build
         env:
           NODE_ENV: production
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
 
       - name: Set Worker secrets
         env:

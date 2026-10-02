@@ -8,7 +8,9 @@ export function Header() {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-card px-5">
       <OrganizationSwitcher
-        hidePersonal
+        afterCreateOrganizationUrl="/dashboard"
+        afterSelectOrganizationUrl="/dashboard"
+        afterLeaveOrganizationUrl="/dashboard"
         appearance={{
           elements: {
             rootBox: "flex items-center",
