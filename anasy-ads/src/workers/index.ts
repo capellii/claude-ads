@@ -1,4 +1,3 @@
-// Run: tsx --env-file .env.local src/workers/index.ts
 import { startWorker } from "./ads-workflow";
 
 const worker = startWorker();

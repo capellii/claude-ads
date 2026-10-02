@@ -1,4 +1,3 @@
-// Run: tsx src/workers/index.ts (env vars must be set in the shell or via --env-file)
 import { Worker, type Job } from "bullmq";
 import { redis, type WorkflowJobData } from "@/lib/queue/client";
 import { db } from "@/lib/db";
